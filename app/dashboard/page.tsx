@@ -19,27 +19,21 @@ export default function DashboardPage() {
   }, [])
 
   const calculateStats = async () => {
-    // --- PERBAIKAN LOGIKA WAKTU (Agar reset jam 00:00 waktu lokal) ---
     const now = new Date()
-    // Set jam ke 00:00:00 waktu lokal laptop Tuanku
     now.setHours(0, 0, 0, 0) 
-    // Ubah ke ISO String (ini otomatis akan jadi UTC yang benar untuk Supabase)
     const startOfDay = now.toISOString() 
 
-    // 1. Ambil Transaksi Hari Ini
     const { data: transactions } = await supabase
       .from('transactions')
       .select('*')
-      .gte('created_at', startOfDay) // Pakai variabel startOfDay yang baru
+      .gte('created_at', startOfDay) 
 
-    // 2. Ambil Barang yang Stoknya Menipis (< 5)
     const { data: products } = await supabase
       .from('products')
       .select('*')
       .lt('stock', 5)
       .order('stock')
 
-    // 3. Hitung Omzet & Profit
     let totalOmzet = 0
     let totalProfit = 0
 
@@ -47,11 +41,9 @@ export default function DashboardPage() {
       transactions.forEach((trx) => {
         totalOmzet += trx.total_amount
         
-        // Pastikan trx.items ada isinya sebelum di-loop
         if (trx.items) {
            const items: any[] = trx.items
            items.forEach((item) => {
-             // Pastikan data harga ada untuk menghindari NaN
              const hargaJual = item.sell_price || 0
              const hargaModal = item.capital_price || 0
              const qty = item.quantity || 0
@@ -78,7 +70,6 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-100 p-4 md:p-8">
       <div className="max-w-5xl mx-auto">
         
-        {/* Header */}
         <div className="flex items-center gap-4 mb-8">
             <Link href="/" className="p-2 bg-white rounded-full shadow hover:bg-gray-50">
                 <ArrowLeft className="text-gray-700" />
@@ -93,9 +84,7 @@ export default function DashboardPage() {
             <div className="text-center py-10">Menghitung duit...</div>
         ) : (
             <>
-                {/* 1. KARTU STATISTIK */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    {/* Kartu Omzet */}
                     <div className="bg-blue-600 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <DollarSign className="absolute right-4 top-4 opacity-20" size={48} />
                         <p className="text-blue-100 font-medium mb-1">Omzet Hari Ini</p>
@@ -105,7 +94,6 @@ export default function DashboardPage() {
                         </div>
                     </div>
 
-                    {/* Kartu Profit (Paling Penting!) */}
                     <div className="bg-green-600 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <TrendingUp className="absolute right-4 top-4 opacity-20" size={48} />
                         <p className="text-green-100 font-medium mb-1">Keuntungan Bersih</p>
@@ -113,7 +101,6 @@ export default function DashboardPage() {
                         <p className="text-xs text-green-200 mt-4">Uang yang boleh dipakai jajan</p>
                     </div>
 
-                    {/* Kartu Stok Kritis */}
                     <div className="bg-orange-500 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
                         <AlertTriangle className="absolute right-4 top-4 opacity-20" size={48} />
                         <p className="text-orange-100 font-medium mb-1">Perlu Restock</p>
@@ -122,7 +109,6 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
-                {/* 2. TABEL PERINGATAN STOK */}
                 {lowStockItems.length > 0 && (
                     <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
                         <div className="p-4 border-b bg-red-50 flex items-center gap-2">

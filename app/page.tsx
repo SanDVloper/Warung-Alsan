@@ -40,7 +40,7 @@ export default function WarungKasir() {
     
     // Validasi Pembayaran (Opsional: bisa dihapus jika boleh hutang/kurang)
     if (!isPaymentSufficient) {
-        alert('Uang pembayaran kurang, Tuanku!')
+        alert('Uang pembayaran kurang!')
         return
     }
 
@@ -85,7 +85,7 @@ export default function WarungKasir() {
         {/* Header & Search */}
         <div className="p-4 bg-white shadow-sm z-10">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-800">Warung Santa 🏪</h1>
+            <h1 className="text-xl font-bold text-gray-800">Warung Alsan 🏪</h1>
             <div className="flex gap-2">
                 <Link href="/dashboard" className="p-2 bg-purple-100 rounded-full hover:bg-purple-200" title="Dashboard Keuangan">
                     <LayoutDashboard size={20} className="text-purple-600"/>
