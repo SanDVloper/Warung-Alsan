@@ -9,14 +9,10 @@ export default function TambahBarang() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
-  // 1. State Data Utama
   const [form, setForm] = useState({ name: '', capital: '', sell: '', stock: '' })
-
-  // 2. State Khusus Varian
   const [variants, setVariants] = useState<{ name: string; price: number }[]>([])
   const [variantInput, setVariantInput] = useState({ name: '', price: '' })
 
-  // --- Fungsi-fungsi Logika ---
   const handleAddVariant = () => {
     if (!variantInput.name || !variantInput.price) {
       alert('Isi nama dan harga varian dulu, Tuanku!')
@@ -56,14 +52,12 @@ export default function TambahBarang() {
     setLoading(false)
   }
 
-  // Style input standar agar seragam (Latar Putih, Teks Hitam)
   const inputStyle = "w-full pl-10 p-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 outline-none transition"
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-10 flex justify-center items-center">
       <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-lg border border-gray-100">
         
-        {/* Header */}
         <div className="flex items-center gap-3 mb-6 border-b pb-4">
             <Link href="/" className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition text-gray-600">
                 <ArrowLeft size={20} />
@@ -75,10 +69,7 @@ export default function TambahBarang() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          
-          {/* --- INPUT UTAMA --- */}
           <div className="space-y-4">
-              {/* Nama Barang */}
               <div>
                 <label className="text-sm font-bold text-gray-700 mb-1 block">Nama Barang</label>
                 <div className="relative">
@@ -92,7 +83,6 @@ export default function TambahBarang() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Modal */}
                 <div>
                     <label className="text-sm font-bold text-gray-700 mb-1 block">Modal (Beli)</label>
                     <div className="relative">
@@ -104,9 +94,8 @@ export default function TambahBarang() {
                         />
                     </div>
                 </div>
-                {/* Jual Dasar */}
                 <div>
-                    <label className="text-sm font-bold text-gray-700 mb-1 block">Jual (Dasar/Saset)</label>
+                    <label className="text-sm font-bold text-gray-700 mb-1 block">Jual (Saset)</label>
                     <div className="relative">
                         <Tag className="absolute left-3 top-3.5 text-gray-400" size={18} />
                         <input 
@@ -118,7 +107,6 @@ export default function TambahBarang() {
                 </div>
               </div>
 
-              {/* Stok */}
               <div>
                 <label className="text-sm font-bold text-gray-700 mb-1 block">Stok Awal</label>
                 <div className="relative">
@@ -132,7 +120,7 @@ export default function TambahBarang() {
               </div>
           </div>
 
-          {/* --- INPUT VARIAN (PERBAIKAN WARNA DI SINI) --- */}
+          {/* --- INPUT VARIAN (FIX RESPONSIVE) --- */}
           <div className="bg-orange-50 p-5 rounded-xl border border-orange-100 mt-6">
             <div className="flex items-center gap-2 mb-2">
                 <Tag size={18} className="text-orange-600"/>
@@ -140,33 +128,38 @@ export default function TambahBarang() {
             </div>
             
             <p className="text-sm text-orange-700 mb-4 leading-relaxed opacity-80">
-                Isi ini <b>hanya jika</b> barang punya jenis olahan berbeda (Contoh: "Es", "Panas"). Klik tombol <b>+</b> untuk menambahkan.
+                Isi ini <b>hanya jika</b> barang punya jenis olahan berbeda.
             </p>
             
-            <div className="flex gap-2 mb-3">
-                {/* Input Nama Varian: Latar Putih, Teks Gelap */}
+            {/* WRAPPER FLEX: Kolom di Mobile, Baris di Desktop */}
+            <div className="flex flex-col md:flex-row gap-3 mb-3">
+                {/* 1. Input Nama (Full Width) */}
                 <input 
                     type="text" placeholder="Nama (misal: Es Dingin)" 
-                    className="flex-1 p-3 text-sm bg-white border border-orange-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition shadow-sm"
+                    className="w-full md:flex-1 p-3 text-sm bg-white border border-orange-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition shadow-sm"
                     value={variantInput.name}
                     onChange={e => setVariantInput({...variantInput, name: e.target.value})}
                 />
                 
-                {/* Input Harga Varian: Latar Putih, Teks Gelap */}
-                <input 
-                    type="number" placeholder="Harga Jual" 
-                    className="w-28 p-3 text-sm bg-white border border-orange-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition shadow-sm"
-                    value={variantInput.price}
-                    onChange={e => setVariantInput({...variantInput, price: e.target.value})}
-                />
-                
-                <button 
-                    type="button" 
-                    onClick={handleAddVariant} 
-                    className="bg-orange-600 text-white w-12 rounded-lg hover:bg-orange-700 flex items-center justify-center shadow-sm active:scale-95 transition"
-                >
-                    <Plus size={24}/>
-                </button>
+                {/* 2. Container Harga & Tombol (Lebar Penuh di Mobile) */}
+                <div className="flex gap-3 w-full md:w-auto">
+                    <input 
+                        type="number" placeholder="Harga Jual" 
+                        // Tambah 'min-w-0' dan 'w-full' agar tidak overflow
+                        className="flex-1 w-full md:w-32 p-3 text-sm bg-white border border-orange-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition shadow-sm min-w-0"
+                        value={variantInput.price}
+                        onChange={e => setVariantInput({...variantInput, price: e.target.value})}
+                    />
+                    
+                    <button 
+                        type="button" 
+                        onClick={handleAddVariant} 
+                        // Tambah 'flex-none' agar tombol tidak gepeng
+                        className="bg-orange-600 text-white w-12 flex-none rounded-lg hover:bg-orange-700 flex items-center justify-center shadow-sm active:scale-95 transition"
+                    >
+                        <Plus size={24}/>
+                    </button>
+                </div>
             </div>
 
             {/* List Varian */}
