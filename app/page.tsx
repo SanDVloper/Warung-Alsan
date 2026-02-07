@@ -1,33 +1,119 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useCartStore, Product } from '@/lib/store'
-import { Trash2, Search, ShoppingCart, X, History, Plus, Package, LayoutDashboard } from 'lucide-react'
+import { Trash2, Search, ShoppingCart, X, History, Plus, Package, LayoutDashboard, Tag } from 'lucide-react'
 import Link from 'next/link'
+import VariantModal from '@/components/VariantModal' 
+
+// --- TIPE DATA ---
+type Variant = {
+  name: string
+  price: number
+}
+
+type Product = {
+  id: number
+  name: string
+  sell_price: number 
+  stock: number
+  variants: Variant[] | null 
+}
+
+type CartItem = {
+  uniqueId: string 
+  id: number       
+  name: string
+  sell_price: number
+  quantity: number
+  variantName?: string 
+  stock: number        
+}
 
 export default function WarungKasir() {
   const [products, setProducts] = useState<Product[]>([])
-  const { cart, addToCart, removeFromCart, clearCart, totalPrice } = useCartStore()
+  const [cart, setCart] = useState<CartItem[]>([])
   const [loading, setLoading] = useState(false)
   
   // State Search & Mobile Cart
   const [searchTerm, setSearchTerm] = useState('') 
   const [showMobileCart, setShowMobileCart] = useState(false)
 
-  // FITUR BARU: Uang Pembayaran
+  // State Pembayaran
   const [payment, setPayment] = useState<number | ''>('') 
+
+  // State Modal Varian
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
     fetchProducts()
   }, [])
 
   const fetchProducts = async () => {
+    // Refresh data untuk memastikan varian terbaru muncul
     const { data } = await supabase.from('products').select('*').order('name')
     if (data) setProducts(data)
   }
 
-  // Hitung Kembalian
-  const total = totalPrice()
+  // --- LOGIKA UTAMA (HANDLE KLIK PRODUK) ---
+  const handleProductClick = (product: Product) => {
+    // Cek apakah produk punya varian valid (Array dan ada isinya)
+    const hasVariants = product.variants && Array.isArray(product.variants) && product.variants.length > 0
+
+    if (hasVariants) {
+      setSelectedProduct(product)
+      setIsModalOpen(true)
+    } else {
+      addToCart(product, product.sell_price)
+    }
+  }
+
+  // --- FUNGSI MASUK KERANJANG ---
+  const addToCart = (product: Product, finalPrice: number, variantName?: string) => {
+    const uniqueId = `${product.id}-${variantName || 'original'}`
+
+    setCart((prevCart) => {
+      // Cek stok fisik gabungan
+      const currentPhysicalQty = prevCart
+        .filter(item => item.id === product.id)
+        .reduce((sum, item) => sum + item.quantity, 0)
+
+      if (currentPhysicalQty >= product.stock) {
+        alert('Stok fisik habis, Tuanku!')
+        return prevCart
+      }
+
+      const existingItem = prevCart.find((item) => item.uniqueId === uniqueId)
+
+      if (existingItem) {
+        return prevCart.map((item) =>
+          item.uniqueId === uniqueId ? { ...item, quantity: item.quantity + 1 } : item
+        )
+      } else {
+        return [
+          ...prevCart,
+          {
+            uniqueId,
+            id: product.id,
+            name: product.name,
+            sell_price: finalPrice,
+            quantity: 1,
+            variantName: variantName,
+            stock: product.stock,
+          },
+        ]
+      }
+    })
+    
+    setIsModalOpen(false) 
+  }
+
+  const removeFromCart = (uniqueId: string) => {
+    setCart((prev) => prev.filter((item) => item.uniqueId !== uniqueId))
+  }
+
+  // --- HITUNG-HITUNGAN ---
+  const total = cart.reduce((sum, item) => sum + item.sell_price * item.quantity, 0)
   const kembalian = payment ? (Number(payment) - total) : 0
   const isPaymentSufficient = payment ? Number(payment) >= total : false
 
@@ -37,8 +123,6 @@ export default function WarungKasir() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return
-    
-    // Validasi Pembayaran (Opsional: bisa dihapus jika boleh hutang/kurang)
     if (!isPaymentSufficient) {
         alert('Uang pembayaran kurang!')
         return
@@ -52,28 +136,36 @@ export default function WarungKasir() {
     })
 
     if (!error) {
-      for (const item of cart) {
-         const newStock = item.stock - item.quantity
-         await supabase.from('products').update({ stock: newStock }).eq('id', item.id)
+      // Update Stok di Database
+      const stockReductions: Record<number, number> = {}
+      
+      cart.forEach(item => {
+        stockReductions[item.id] = (stockReductions[item.id] || 0) + item.quantity
+      })
+
+      for (const [productId, qtySold] of Object.entries(stockReductions)) {
+         const { data: currentProduct } = await supabase
+            .from('products')
+            .select('stock')
+            .eq('id', productId)
+            .single()
+         
+         if (currentProduct) {
+             const newStock = currentProduct.stock - qtySold
+             await supabase.from('products').update({ stock: newStock }).eq('id', productId)
+         }
       }
       
-      // Tampilkan info kembalian di alert akhir
-      alert(`Transaksi Sukses!\n\nTotal: Rp ${total.toLocaleString()}\nBayar: Rp ${Number(payment).toLocaleString()}\nKembalian: Rp ${kembalian.toLocaleString()}`)
+      alert(`Transaksi Sukses!\nKembalian: Rp ${kembalian.toLocaleString()}`)
       
-      clearCart()
-      setPayment('') // Reset kolom uang
-      fetchProducts()
+      setCart([]) 
+      setPayment('')
+      fetchProducts() 
       setShowMobileCart(false) 
     } else {
       alert('Gagal menyimpan transaksi')
     }
     setLoading(false)
-  }
-
-  // Format Rupiah untuk Input
-  const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setPayment(value === '' ? '' : Number(value))
   }
 
   return (
@@ -87,7 +179,7 @@ export default function WarungKasir() {
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-xl font-bold text-gray-800">Warung Alsan 🏪</h1>
             <div className="flex gap-2">
-                <Link href="/dashboard" className="p-2 bg-purple-100 rounded-full hover:bg-purple-200" title="Dashboard Keuangan">
+                <Link href="/dashboard" className="p-2 bg-purple-100 rounded-full hover:bg-purple-200" title="Dashboard">
                     <LayoutDashboard size={20} className="text-purple-600"/>
                 </Link>
                 <Link href="/inventory" className="p-2 bg-orange-100 rounded-full hover:bg-orange-200" title="Gudang">
@@ -96,7 +188,7 @@ export default function WarungKasir() {
                 <Link href="/riwayat" className="p-2 bg-gray-100 rounded-full hover:bg-gray-200" title="Riwayat">
                     <History size={20} className="text-gray-600"/>
                 </Link>
-                <Link href="/tambah" className="p-2 bg-blue-100 rounded-full hover:bg-blue-200" title="Tambah Barang">
+                <Link href="/tambah" className="p-2 bg-blue-100 rounded-full hover:bg-blue-200" title="Tambah">
                     <Plus size={20} className="text-blue-600"/>
                 </Link>
             </div>
@@ -117,25 +209,40 @@ export default function WarungKasir() {
         {/* Grid Barang */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 md:pb-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredProducts.map((product) => (
-              <button
-                key={product.id}
-                onClick={() => addToCart(product)}
-                className="bg-white p-3 rounded-xl shadow-sm hover:shadow-md active:scale-95 transition text-left flex flex-col justify-between h-28 md:h-32 border border-gray-100"
-              >
-                <span className="font-semibold text-gray-800 text-sm md:text-base line-clamp-2 leading-tight">
-                  {product.name}
-                </span>
-                <div className="mt-2">
-                  <div className="text-blue-600 font-bold text-sm md:text-base">
-                    Rp {product.sell_price.toLocaleString()}
-                  </div>
-                  <div className="text-[10px] md:text-xs text-gray-400">
-                    Stok: {product.stock}
-                  </div>
-                </div>
-              </button>
-            ))}
+            {filteredProducts.map((product) => {
+                // Cek varian aman
+                const hasVariants = product.variants && Array.isArray(product.variants) && product.variants.length > 0;
+
+                return (
+                  <button
+                    key={product.id}
+                    onClick={() => handleProductClick(product)}
+                    className="bg-white p-3 rounded-xl shadow-sm hover:shadow-md active:scale-95 transition text-left flex flex-col justify-between h-28 md:h-32 border border-gray-100 relative overflow-hidden group"
+                  >
+                    <div className="flex justify-between items-start gap-1">
+                        <span className="font-semibold text-gray-800 text-sm md:text-base line-clamp-2 leading-tight pr-6">
+                            {product.name}
+                        </span>
+                    </div>
+
+                    {/* --- BADGE OPSIONAL (POSISI KANAN ATAS MUTLAK) --- */}
+                    {hasVariants && (
+                        <span className="absolute top-2 right-2 z-10 bg-orange-100 text-orange-700 text-[10px] font-extrabold px-2 py-1 rounded-lg border border-orange-200 shadow-sm flex items-center gap-1">
+                           Opsi+
+                        </span>
+                    )}
+
+                    <div className="mt-2">
+                      <div className="text-blue-600 font-bold text-sm md:text-base">
+                        Rp {product.sell_price.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] md:text-xs text-gray-400">
+                        Stok: {product.stock}
+                      </div>
+                    </div>
+                  </button>
+                )
+            })}
           </div>
         </div>
       </div>
@@ -158,7 +265,7 @@ export default function WarungKasir() {
         </div>
       )}
 
-      {/* BAGIAN KANAN: KERANJANG & KALKULATOR */}
+      {/* BAGIAN KANAN: KERANJANG */}
       <div className={`
         fixed inset-0 z-40 bg-white md:static md:w-96 md:shadow-xl md:flex flex-col transition-transform duration-300
         ${showMobileCart ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
@@ -186,9 +293,17 @@ export default function WarungKasir() {
             </div>
           ) : (
             cart.map((item) => (
-              <div key={item.id} className="flex justify-between items-center bg-white border p-3 rounded-lg shadow-sm">
+              <div key={item.uniqueId} className="flex justify-between items-center bg-white border p-3 rounded-lg shadow-sm">
                 <div>
                   <div className="font-medium text-gray-800">{item.name}</div>
+                  
+                  {/* --- TAMPILAN VARIAN DI KERANJANG --- */}
+                  {item.variantName && (
+                      <div className="inline-block bg-orange-50 text-orange-700 text-[10px] font-bold px-1.5 py-0.5 rounded border border-orange-100 mb-1">
+                        {item.variantName}
+                      </div>
+                  )}
+
                   <div className="text-xs text-gray-500">
                     {item.quantity} x Rp {item.sell_price.toLocaleString()}
                   </div>
@@ -198,7 +313,7 @@ export default function WarungKasir() {
                     Rp {(item.quantity * item.sell_price).toLocaleString()}
                   </span>
                   <button 
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => removeFromCart(item.uniqueId)}
                     className="text-red-500 hover:bg-red-50 p-2 rounded-full"
                   >
                     <Trash2 size={16} />
@@ -209,10 +324,8 @@ export default function WarungKasir() {
           )}
         </div>
 
-        {/* AREA CHECKOUT & HITUNG KEMBALIAN */}
+        {/* AREA CHECKOUT */}
         <div className="p-6 border-t bg-gray-50 space-y-4">
-            
-            {/* Total Tagihan */}
             <div className="flex justify-between items-center">
                 <span className="text-gray-500">Total Tagihan</span>
                 <span className="text-2xl font-bold text-blue-600">
@@ -220,7 +333,6 @@ export default function WarungKasir() {
                 </span>
             </div>
 
-            {/* Input Uang Pembeli */}
             <div className="bg-white p-3 rounded-xl border border-gray-200">
                 <label className="block text-xs font-bold text-gray-400 mb-1">UANG DITERIMA</label>
                 <div className="flex items-center gap-2">
@@ -230,12 +342,11 @@ export default function WarungKasir() {
                         placeholder="0"
                         className="w-full text-xl font-bold text-gray-800 focus:outline-none"
                         value={payment}
-                        onChange={handlePaymentChange}
+                        onChange={(e) => setPayment(e.target.value === '' ? '' : Number(e.target.value))}
                     />
                 </div>
             </div>
 
-            {/* Display Kembalian */}
             <div className={`flex justify-between items-center p-3 rounded-xl ${isPaymentSufficient ? 'bg-green-100 text-green-800' : 'bg-red-50 text-red-600'}`}>
                 <span className="text-sm font-bold">Kembalian</span>
                 <span className="text-xl font-bold">
@@ -254,6 +365,19 @@ export default function WarungKasir() {
             </button>
         </div>
       </div>
+
+      {/* --- POPUP MODAL --- */}
+      <VariantModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        product={selectedProduct}
+        onSelectOriginal={() => {
+            if (selectedProduct) addToCart(selectedProduct, selectedProduct.sell_price)
+        }}
+        onSelectVariant={(variant) => {
+            if (selectedProduct) addToCart(selectedProduct, variant.price, variant.name)
+        }}
+      />
 
     </div>
   )
